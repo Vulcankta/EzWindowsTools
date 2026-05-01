@@ -5,7 +5,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
 import time
 
 
@@ -15,6 +15,7 @@ class ModuleStatus:
     state: str = 'stopped'       # 'running' | 'stopped' | 'error'
     detail: str = ''             # 详细描述
     last_check: Optional[datetime] = None  # 最近一次检查时间
+    was_corrected: bool = False  # 最近一次检查是否执行了修正（去中文化）
 
 
 class ModuleBase(ABC):
@@ -34,6 +35,7 @@ class ModuleBase(ABC):
         self._heartbeat: float = 0.0
         self._running = False
         self._check_interval: float = 60.0  # 用于 is_alive() 动态阈值
+        self._notify_callback: Optional[Callable[[str, str], None]] = None
 
     # ── 生命周期 ──────────────────────────────────────────
 
@@ -89,6 +91,12 @@ class ModuleBase(ABC):
         if self._status.state == 'running':
             return (time.monotonic() - self._heartbeat) < (self._check_interval * tolerance)
         return False
+
+    # ── 通知 ──────────────────────────────────────────────
+
+    def set_notify_callback(self, callback: Callable[[str, str], None]) -> None:
+        """设置通知回调（由 Manager 注入，用于托盘通知等）"""
+        self._notify_callback = callback
 
     # ── 配置 ──────────────────────────────────────────────
 

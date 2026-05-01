@@ -16,10 +16,11 @@ if TYPE_CHECKING:
     from manager import Manager
 
 # ── 图标颜色 ────────────────────────────────────────────────
-COLOR_GREEN = '#4CAF50'   # 全部正常
-COLOR_RED   = '#F44336'   # 有模块刚修正
-COLOR_GRAY  = '#9E9E9E'   # 有模块出错
-COLOR_BLUE  = '#2196F3'   # 管理器启动中
+COLOR_GREEN   = '#4CAF50'   # 全部正常
+COLOR_RED     = '#F44336'   # 有模块刚修正
+COLOR_GRAY    = '#9E9E9E'   # 有模块出错
+COLOR_BLUE    = '#2196F3'   # 管理器启动中 / 无可用模块
+COLOR_STOPPED = '#B0B0B0'   # 所有模块已停止
 
 
 def _create_icon_image(color: str, size: int = 64) -> Image.Image:
@@ -41,10 +42,11 @@ def _create_icon_image(color: str, size: int = 64) -> Image.Image:
 
 # 预生成各颜色图标
 ICONS = {
-    'ok':    _create_icon_image(COLOR_GREEN),
-    'error': _create_icon_image(COLOR_GRAY),
-    'fixed': _create_icon_image(COLOR_RED),
-    'init':  _create_icon_image(COLOR_BLUE),
+    'ok':      _create_icon_image(COLOR_GREEN),
+    'error':   _create_icon_image(COLOR_GRAY),
+    'fixed':   _create_icon_image(COLOR_RED),
+    'init':    _create_icon_image(COLOR_BLUE),
+    'stopped': _create_icon_image(COLOR_STOPPED),
 }
 
 
@@ -80,25 +82,38 @@ class TrayManager:
                 items.append(
                     pystray.MenuItem(
                         label,
-                        lambda n=name: self._toggle_module(n),
+                        # pystray 将 Icon 对象作为第一个参数传给回调，用 *args 忽略
+                        lambda *args, n=name: self._toggle_module(n),
                     )
                 )
 
         items.append(pystray.Menu.SEPARATOR)
-        items.append(pystray.MenuItem(_('tray.settings'), self._manager.open_settings))
-        items.append(pystray.MenuItem(_('tray.quit'), self._manager.quit))
+        items.append(pystray.MenuItem(_('tray.settings'), lambda *args: self._manager.open_settings()))
+        items.append(pystray.MenuItem(_('tray.quit'), lambda *args: self._manager.quit()))
         return pystray.Menu(*items)
 
     def _toggle_module(self, name: str) -> None:
         """切换模块启用状态"""
-        enabled = self._manager.config_mgr.is_module_enabled(name)
-        if enabled:
-            self._manager.module_mgr.stop_module(name)
-        else:
-            self._manager.module_mgr.start_module(name)
-        self._manager.config_mgr.set_module_enabled(name, not enabled)
-        # 刷新菜单
-        self._update_icon()
+        try:
+            enabled = self._manager.config_mgr.is_module_enabled(name)
+            if enabled:
+                self._manager.module_mgr.stop_module(name)
+            else:
+                self._manager.module_mgr.start_module(name)
+            self._manager.config_mgr.set_module_enabled(name, not enabled)
+            self._update_icon()
+        except Exception as e:
+            logging.error(f'切换模块 {name} 失败: {e}', exc_info=True)
+            # 备用反馈：即使 logging 失效，也通过托盘通知用户
+            self._try_notify('切换失败', str(e)[:80])
+
+    def _try_notify(self, title: str, message: str) -> None:
+        """尝试发送托盘通知（安全版，不抛异常）"""
+        try:
+            if self._icon:
+                self._icon.notify(title, message)
+        except Exception:
+            pass
 
     # ── 状态聚合 ──────────────────────────────────────────
 
@@ -134,7 +149,7 @@ class TrayManager:
 
             if status.state == 'error':
                 has_error = True
-            elif status.last_check and status.detail.startswith('已修正'):
+            elif status.was_corrected:
                 has_fixed = True
 
             if status.state == 'running':
@@ -145,7 +160,7 @@ class TrayManager:
         elif has_fixed:
             theme = 'fixed'
         elif all_stopped:
-            theme = 'ok'
+            theme = 'stopped'  # 全停止——有别于正常运行
         else:
             theme = 'ok'
 

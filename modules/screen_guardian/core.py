@@ -3,20 +3,11 @@ ScreenTimeoutGuardian — 纯监控逻辑（无 UI、无配置文件 I/O）
 """
 
 import logging
-import sys
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Callable, Optional
 
-# 确保项目根目录在 sys.path 中（仅在 power_manager 不可导入时）
-try:
-    from power_manager import PowerManager
-except ImportError:
-    _project_root = Path(__file__).resolve().parent.parent.parent
-    if str(_project_root) not in sys.path:
-        sys.path.insert(0, str(_project_root))
-    from power_manager import PowerManager
+from utils.power_manager import PowerManager
 from module_base import ModuleStatus
 
 SECONDS_PER_MINUTE = 60
@@ -118,6 +109,7 @@ class ScreenGuardianCore:
                     state='running',
                     detail=f'已修正: {", ".join(corrections)}',
                     last_check=self.last_check_time,
+                    was_corrected=True,
                 )
 
             return ModuleStatus(

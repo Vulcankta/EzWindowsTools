@@ -26,13 +26,17 @@ class ConfigWindow:
 
     def show(self) -> None:
         """显示/激活设置窗口"""
-        if self._window is not None and self._window.winfo_exists():
-            self._window.lift()
-            self._window.focus_force()
-            return
+        try:
+            if self._window is not None and self._window.winfo_exists():
+                self._window.lift()
+                self._window.focus_force()
+                return
 
-        self._build_window()
-        self._window.protocol('WM_DELETE_WINDOW', self._on_close)
+            self._build_window()
+            if self._window:
+                self._window.protocol('WM_DELETE_WINDOW', self._on_close)
+        except Exception as e:
+            logging.error(f'显示设置窗口失败: {e}', exc_info=True)
 
     def _build_window(self) -> None:
         """构建窗口 UI"""
@@ -40,7 +44,18 @@ class ConfigWindow:
         self._window.title(_('config.title'))
         self._window.geometry('640x560')
         self._window.minsize(520, 400)
-        self._window.transient(self._manager.root)
+        # 窗口居中
+        self._window.update_idletasks()
+        w = self._window.winfo_width()
+        h = self._window.winfo_height()
+        sw = self._window.winfo_screenwidth()
+        sh = self._window.winfo_screenheight()
+        x = (sw - w) // 2
+        y = (sh - h) // 2
+        self._window.geometry(f'{w}x{h}+{x}+{y}')
+        # 不设置 transient：父窗口 root 是 withdraw 隐藏状态
+        # 在某些 Windows 版本上 transient 到隐藏窗口会导致子窗口也不显示
+        # self._window.transient(self._manager.root)
 
         # ── 主框架 ──
         main = ttk.Frame(self._window, padding=12)
@@ -276,12 +291,26 @@ class ConfigWindow:
             self._manager._init_auto_start()
 
             logging.info('配置已保存')
-            self._window.withdraw()
+
+            # 刷新托盘状态（语言、模块启停立刻反映到菜单）
+            self._manager.refresh_tray()
+
+            self._destroy_window()
         except Exception as e:
             logging.error(f'保存配置失败: {e}', exc_info=True)
             messagebox.showerror(_('config.title'), f'Save failed: {e}')
 
+    def _destroy_window(self) -> None:
+        """销毁窗口（使下次 show 完全重建，避免 withold 后 lift 不可用）"""
+        if self._window:
+            try:
+                self._window.destroy()
+            except Exception:
+                pass
+            self._window = None
+            self._module_frames = {}
+            self._status_labels = {}
+
     def _on_close(self) -> None:
         """关闭窗口（不保存）"""
-        if self._window:
-            self._window.withdraw()
+        self._destroy_window()

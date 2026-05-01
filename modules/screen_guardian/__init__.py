@@ -127,9 +127,14 @@ class ModulePlugin(ModuleBase):
     # ── 通知回调 ──────────────────────────────────────────
 
     def _on_correction(self, corrections: list[str]) -> None:
-        """修正发生时的回调（子类可覆盖或供外部设置）"""
-        if corrections:
-            logging.info(f'收到修正通知: {", ".join(corrections)}')
+        """修正发生时的回调"""
+        if not corrections:
+            return
+        msg = f'已自动修正: {", ".join(corrections)}'
+        logging.info(msg)
+        # 托盘通知（由 Manager 注入 _notify_callback）
+        if self._notify_callback and self._config.get('show_notifications', True):
+            self._notify_callback('ScreenTimeoutGuardian', msg)
 
     # ── 配置 UI ──────────────────────────────────────────
 
