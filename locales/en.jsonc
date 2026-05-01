@@ -1,0 +1,50 @@
+{
+  // ==========================================
+  // English — baseline language
+  // All keys MUST be present here.
+  // ==========================================
+
+  "$code": "en",
+  "$name": "English",
+
+  "app.name": "EzWindowsTools",
+
+  // -- tray --
+  "tray.settings": "Settings",
+  "tray.quit": "Quit",
+
+  // -- config window --
+  "config.title": "EzWindowsTools Settings",
+  "config.auto_start": "Auto-start on boot",
+  "config.language": "Language",
+  "config.language.builtin": "Built-in: {name}",
+  "config.language.custom": "Custom file...",
+  "config.language.browse": "Browse language file...",
+  "config.save": "Save",
+  "config.cancel": "Cancel",
+
+  // -- module common --
+  "module.enabled": "Enabled",
+  "module.auto_start": "Auto-start with manager",
+  "module.status.running": "Running",
+  "module.status.stopped": "Stopped",
+  "module.status.error": "Error",
+  "module.status.unloaded": "Not loaded",
+  "module.no_config": "This module has no settings.",
+  "module.settings": "Module Settings",
+
+  // -- screen_guardian --
+  "screen_guardian.name": "Screen Timeout Guardian",
+  "screen_guardian.description": "Monitors AC/DC display and sleep timeouts, auto-corrects if tampered.",
+  "screen_guardian.check_interval": "Check interval",
+  "screen_guardian.ac_display": "AC display timeout",
+  "screen_guardian.dc_display": "DC display timeout",
+  "screen_guardian.ac_sleep": "AC sleep timeout",
+  "screen_guardian.dc_sleep": "DC sleep timeout",
+  "screen_guardian.show_notifications": "Show notifications",
+
+  // -- units --
+  "unit.seconds": "seconds",
+  "unit.minutes": "minutes",
+  "unit.value_never": "Never"
+}

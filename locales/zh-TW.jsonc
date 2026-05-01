@@ -1,0 +1,44 @@
+{
+  // ==========================================
+  // 繁體中文
+  // 缺失的字段自動回退到英文 (en)
+  // ==========================================
+
+  "$code": "zh-TW",
+  "$name": "繁體中文",
+
+  "app.name": "EzWindowsTools",
+
+  "tray.settings": "設定",
+  "tray.quit": "結束",
+
+  "config.title": "EzWindowsTools 設定",
+  "config.auto_start": "開機自動啟動",
+  "config.language": "語言",
+  "config.language.custom": "自訂語言檔案...",
+  "config.language.browse": "瀏覽語言檔案...",
+  "config.save": "儲存",
+  "config.cancel": "取消",
+
+  "module.enabled": "啟用",
+  "module.auto_start": "隨管理員自動啟動",
+  "module.status.running": "執行中",
+  "module.status.stopped": "已停止",
+  "module.status.error": "異常",
+  "module.status.unloaded": "未載入",
+  "module.no_config": "此模組沒有設定項目。",
+  "module.settings": "模組設定",
+
+  "screen_guardian.name": "螢幕逾時守護",
+  "screen_guardian.description": "定時檢查 AC/DC 熄屏與睡眠逾時，被篡改時自動修正。",
+  "screen_guardian.check_interval": "檢查間隔",
+  "screen_guardian.ac_display": "AC 熄屏逾時",
+  "screen_guardian.dc_display": "DC 熄屏逾時",
+  "screen_guardian.ac_sleep": "AC 睡眠逾時",
+  "screen_guardian.dc_sleep": "DC 睡眠逾時",
+  "screen_guardian.show_notifications": "顯示通知",
+
+  "unit.seconds": "秒",
+  "unit.minutes": "分鐘",
+  "unit.value_never": "永不"
+}
