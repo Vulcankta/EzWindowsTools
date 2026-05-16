@@ -32,10 +32,13 @@ DEFAULT_SCREEN_GUARDIAN_CONFIG = {
 }
 
 DEFAULT_REFRESH_GUARDIAN_CONFIG: dict[str, Any] = {
-    "check_interval_seconds": 60,
-    "show_notifications": True,
-    "correction_cooldown_seconds": 300,
-    "displays": {},
+    "enabled": True,
+    "auto_start": True,
+    "config": {
+        "check_interval_seconds": 60,
+        "show_notifications": True,
+        "displays": {},
+    },
 }
 
 DEFAULT_CONFIG: dict[str, Any] = {

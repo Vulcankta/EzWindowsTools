@@ -93,7 +93,7 @@ class TrayManager:
         return pystray.Menu(*items)
 
     def _toggle_module(self, name: str) -> None:
-        """切换模块启用状态"""
+        """切换模块启用状态（立即生效）"""
         try:
             enabled = self._manager.config_mgr.is_module_enabled(name)
             if enabled:
@@ -104,7 +104,6 @@ class TrayManager:
             self._update_icon()
         except Exception as e:
             logging.error(f'切换模块 {name} 失败: {e}', exc_info=True)
-            # 备用反馈：即使 logging 失效，也通过托盘通知用户
             self._try_notify('切换失败', str(e)[:80])
 
     def _try_notify(self, title: str, message: str) -> None:

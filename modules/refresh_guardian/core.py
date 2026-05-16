@@ -4,7 +4,6 @@ RefreshRateGuardian — 纯监控逻辑（无 UI、无配置文件 I/O）
 
 import copy
 import logging
-import time
 from datetime import datetime
 from typing import Callable, Optional
 
@@ -33,9 +32,6 @@ class RefreshRateGuardianCore:
         self.last_check_time: Optional[datetime] = None
         self.last_values: dict[str, int] = {}
         self.last_corrections: list[str] = []
-        # 修正冷却：防止 ChangeDisplaySettingsExW 频繁触发屏幕闪烁
-        self._last_correction_time: float = 0.0
-        self._cooldown_seconds: int = 300  # 默认 5 分钟冷却
 
     def update_config(self, config: dict) -> None:
         """热重载配置"""
@@ -85,20 +81,16 @@ class RefreshRateGuardianCore:
                 if not entry_enabled or expected_hz <= 0:
                     continue  # 已禁用或期望值不合法
 
-                if current_hz != expected_hz:
-                    # 冷却检查：上次修正后未满冷却期则跳过（避免频繁闪屏）
-                    cooldown = config.get('correction_cooldown_seconds', self._cooldown_seconds)
-                    elapsed = time.monotonic() - self._last_correction_time
-                    if elapsed < cooldown:
-                        logging.debug(f'{friendly} 修正冷却中 ({cooldown - elapsed:.0f}s 剩余)')
-                        continue
-                    # 尝试修正
-                    success, msg = set_refresh_rate(name, expected_hz)
-                    if success:
-                        corrections.append(f'{friendly} {current_hz}→{expected_hz}Hz')
-                        self._last_correction_time = time.monotonic()
-                    else:
-                        corrections.append(f'{friendly} 修正失败: {msg}')
+                # 允许 1Hz 误差（NTSC vs 整数精度问题，如 59.94→59 或 119.88→119）
+                if abs(current_hz - expected_hz) <= 1:
+                    continue
+
+                # 尝试修正
+                success, msg = set_refresh_rate(name, expected_hz)
+                if success:
+                    corrections.append(f'{friendly} {current_hz}→{expected_hz}Hz')
+                else:
+                    corrections.append(f'{friendly} 修正失败: {msg}')
 
             self.last_corrections = corrections
             self.last_check_time = datetime.now()

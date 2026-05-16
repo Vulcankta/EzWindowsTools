@@ -85,21 +85,49 @@ class ConfigWindow:
                              variable=self._auto_start_var)
         cb.pack(anchor='w')
 
-        # ── 模块列表（可滚动） ──
-        canvas_frame = ttk.Frame(main)
-        canvas_frame.pack(fill='both', expand=True)
+        # ── 模块列表（可折叠 + 可滚动） ──
+        scroll_outer = ttk.Frame(main)
+        scroll_outer.pack(fill='both', expand=True)
 
-        canvas = ttk.Frame(canvas_frame)
-        canvas.pack(fill='both', expand=True)
+        # Canvas + Scrollbar 实现可滚动区域
+        import tkinter as _tk2
+        self._module_canvas = _tk2.Canvas(scroll_outer, highlightthickness=0)
+        module_scrollbar = ttk.Scrollbar(scroll_outer, orient='vertical',
+                                          command=self._module_canvas.yview)
+        self._module_scrollable = ttk.Frame(self._module_canvas)
+
+        self._module_scrollable.bind(
+            '<Configure>',
+            lambda e: self._module_canvas.configure(
+                scrollregion=self._module_canvas.bbox('all')),
+        )
+        self._canvas_window_id = self._module_canvas.create_window(
+            (0, 0), window=self._module_scrollable, anchor='nw',
+        )
+        # 内层 Frame 宽度跟随 Canvas（实现 fill='x'）
+        self._module_canvas.bind('<Configure>', self._on_canvas_configure)
+        self._module_canvas.configure(yscrollcommand=module_scrollbar.set)
+
+        self._module_canvas.pack(side='left', fill='both', expand=True)
+        module_scrollbar.pack(side='right', fill='y')
+
+        # 绑定鼠标滚轮
+        def _on_mousewheel(event):
+            self._module_canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
+
+        self._module_canvas.bind('<Enter>',
+                                  lambda e: self._module_canvas.bind_all('<MouseWheel>', _on_mousewheel))
+        self._module_canvas.bind('<Leave>',
+                                  lambda e: self._module_canvas.unbind_all('<MouseWheel>'))
 
         # 遍历模块
         from modules import list_modules
         registry = list_modules()
         if not registry:
-            ttk.Label(canvas, text=_('module.status.unloaded')).pack()
+            ttk.Label(self._module_scrollable, text=_('module.status.unloaded')).pack()
         else:
             for name in registry:
-                self._build_module_section(canvas, name, registry[name])
+                self._build_module_section(self._module_scrollable, name, registry[name])
 
         # ── 底部按钮 ──
         btn_frame = ttk.Frame(main)
@@ -153,22 +181,52 @@ class ConfigWindow:
 
     # ── 模块区域 ──────────────────────────────────────────
 
-    def _build_module_section(self, parent: ttk.Frame, name: str, cls) -> None:
-        """构建单个模块的配置区域"""
-        frame = ttk.LabelFrame(parent, padding=8)
-        frame.pack(fill='x', pady=(0, 8))
+    def _on_canvas_configure(self, event) -> None:
+        """Canvas 尺寸变化时更新内层 Frame 宽度以匹配"""
+        try:
+            self._module_canvas.itemconfig(self._canvas_window_id, width=event.width)
+        except Exception:
+            pass
 
-        # 标题行
+    def _build_module_section(self, parent: ttk.Frame, name: str, cls) -> None:
+        """构建单个模块的配置区域（可折叠）"""
+        frame = ttk.LabelFrame(parent, padding=4)
+        frame.pack(fill='x', pady=(0, 6))
+
+        # ── 标题行（始终可见） ──
         header = ttk.Frame(frame)
         header.pack(fill='x')
 
         info = self._manager.config_mgr.get_module_info(name)
 
+        # 折叠切换标签（▼ 展开 / ▶ 折叠）
+        # 默认展开：新窗口默认显示所有内容
+        collapsed = False
+        toggle_text = StringVar(value='▼ ')
+
+        def _toggle():
+            nonlocal collapsed
+            collapsed = not collapsed
+            toggle_text.set('▶ ' if collapsed else '▼ ')
+            if collapsed:
+                content_frame.pack_forget()
+            else:
+                content_frame.pack(fill='x', pady=(4, 0))
+
+        toggle_label = ttk.Label(header, textvariable=toggle_text,
+                                  cursor='hand2')
+        toggle_label.pack(side='left')
+        name_label = ttk.Label(header, text=cls.display_name,
+                               cursor='hand2')
+        name_label.pack(side='left')
+        # 点击切换标签、模块名称、标题空白区域均触发折叠
+        toggle_label.bind('<Button-1>', lambda e: _toggle())
+        name_label.bind('<Button-1>', lambda e: _toggle())
+
         # 启用开关
         enabled_var = BooleanVar(value=info.get('enabled', True))
-        cb = ttk.Checkbutton(header, text=cls.display_name,
-                             variable=enabled_var)
-        cb.pack(side='left')
+        cb = ttk.Checkbutton(header, text='', variable=enabled_var)
+        cb.pack(side='left', padx=(8, 0))
 
         # 状态标签
         status_label = ttk.Label(header, foreground='gray')
@@ -176,28 +234,32 @@ class ConfigWindow:
         self._status_labels[name] = status_label
         self._update_status_label(name)
 
+        # ── 可折叠内容区域 ──
+        content_frame = ttk.Frame(frame)
+        content_frame.pack(fill='x', pady=(4, 0))
+
         # 自动启动
         auto_var = BooleanVar(value=info.get('auto_start', False))
-        auto_cb = ttk.Checkbutton(frame, text=_('module.auto_start'),
+        auto_cb = ttk.Checkbutton(content_frame, text=_('module.auto_start'),
                                   variable=auto_var)
         auto_cb.pack(anchor='w')
 
         # 模块配置 UI
         instance = self._manager.module_mgr.get_instance(name)
         if instance:
-            config_frame, on_lang_cb = instance.build_config_frame(frame)
+            config_frame, on_lang_cb = instance.build_config_frame(content_frame)
             config_frame.pack(fill='x', pady=(4, 0))
         else:
             # 未加载的模块也提供配置 UI
-            config_frame = ttk.Frame(frame)
+            config_frame = ttk.Frame(content_frame)
             ttk.Label(config_frame, text=_('module.no_config')).pack()
             on_lang_cb = lambda i18n: None
 
         # 刷新按钮
-        ttk.Button(frame, text='↻',
+        ttk.Button(content_frame, text='↻',
                    command=lambda n=name: self._refresh_module(n)).pack(anchor='e')
 
-        self._module_frames[name] = (enabled_var, auto_var, config_frame, on_lang_cb)
+        self._module_frames[name] = (enabled_var, auto_var, config_frame, on_lang_cb, content_frame, _toggle)
 
     def _update_status_label(self, name: str) -> None:
         """更新模块状态标签"""
@@ -244,7 +306,7 @@ class ConfigWindow:
             self._update_status_label(name)
 
         # 通知模块框架语言变化
-        for name, (_, _, _, on_lang_cb) in self._module_frames.items():
+        for name, (_, _, _, on_lang_cb, _, _) in self._module_frames.items():
             try:
                 on_lang_cb(self._i18n)
             except Exception as e:
@@ -275,16 +337,18 @@ class ConfigWindow:
                     if module_config:
                         self._manager.config_mgr.set_module_config(name, module_config)
 
-            for name, (enabled_var, auto_var, _, _) in self._module_frames.items():
+            for name, (enabled_var, auto_var, _, _, _, _) in self._module_frames.items():
                 old_info = self._manager.config_mgr.get_module_info(name)
+                # 启用切换：立即生效（启动/停止模块）
                 new_enabled = enabled_var.get()
-                # 根据 enabled 状态变化实际启停模块
-                if old_info.get('enabled', True) != new_enabled:
+                old_enabled = old_info.get('enabled', True)
+                if old_enabled != new_enabled:
                     if new_enabled:
                         self._manager.module_mgr.start_module(name)
                     else:
                         self._manager.module_mgr.stop_module(name)
-                self._manager.config_mgr.set_module_enabled(name, new_enabled)
+                    self._manager.config_mgr.set_module_enabled(name, new_enabled)
+                # 随启动加载：仅持久化，不影响当前状态
                 self._manager.config_mgr.set_module_auto_start(name, auto_var.get())
 
             # 重新同步自动启动

@@ -33,6 +33,7 @@ class ModulePlugin(ModuleBase):
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
         self._config: dict = {}
+        self._restart_event = threading.Event()  # 配置变更时打断 sleep
 
     # ── 生命周期 ──────────────────────────────────────────
 
@@ -83,6 +84,7 @@ class ModulePlugin(ModuleBase):
         self._config = dict(config)
         if self._core:
             self._core.update_config(self._config)
+        self._restart_event.set()  # 打断当前 sleep，立即用新间隔
         logging.info('屏幕超时守护配置已热重载')
 
     def set_initial_config(self, config: dict) -> None:
@@ -106,7 +108,10 @@ class ModulePlugin(ModuleBase):
             for _ in range(interval):
                 if not self._running:
                     break
-                time.sleep(1)
+                if self._restart_event.wait(1):
+                    self._restart_event.clear()
+                    logging.debug('配置已变更，重新计算检查间隔')
+                    break
 
     def _do_check(self) -> None:
         """执行一次检查（线程安全）"""

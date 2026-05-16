@@ -39,6 +39,7 @@ class ModulePlugin(ModuleBase):
         self._lock = threading.Lock()
         self._config: dict = {}
         self._check_interval = 60
+        self._restart_event = threading.Event()  # 配置变更时打断 sleep
 
     # ── 生命周期 ──────────────────────────────────────────
 
@@ -88,6 +89,7 @@ class ModulePlugin(ModuleBase):
         self._config = dict(config)
         if self._core:
             self._core.update_config(self._config)
+        self._restart_event.set()  # 打断当前 sleep，立即用新间隔
         logging.info('刷新率守护配置已热重载')
 
     def set_initial_config(self, config: dict) -> None:
@@ -110,7 +112,12 @@ class ModulePlugin(ModuleBase):
             for _ in range(interval):
                 if not self._running:
                     break
-                time.sleep(1)
+                # 配置变更时 restart_event 被 set，打断 sleep 重新计算间隔
+                if self._restart_event.wait(1):
+                    self._restart_event.clear()
+                    logging.debug('配置已变更，重新计算检查间隔')
+                    break
+                time.sleep(0)  # wait 已阻塞 1s，无需额外 sleep
 
     def _do_check(self) -> None:
         """执行一次检查（线程安全）"""
@@ -178,14 +185,19 @@ class ModulePlugin(ModuleBase):
                                           variable=self._notify_var)
         self._notify_cb.pack(side='right', padx=(6, 0))
 
-        # ── 双列表 ──
+        # ── 双列表（grid + uniform 严格等宽） ──
         lists_row = ttk.Frame(frame)
         lists_row.pack(fill='both', expand=True, pady=(4, 0))
+        lists_row.columnconfigure(0, weight=1, uniform='panel')
+        lists_row.columnconfigure(1, weight=1, uniform='panel')
+        lists_row.rowconfigure(0, weight=1)
 
         # 左侧：已连接显示器
         left_frame = ttk.LabelFrame(lists_row, text=_('refresh_guardian.connected'),
                                     padding=4)
-        left_frame.pack(side='left', fill='both', expand=True, padx=(0, 4))
+        left_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 4))
+        left_frame.rowconfigure(0, weight=1)
+        left_frame.columnconfigure(0, weight=1)
 
         self._connected_list = ttk.Treeview(
             left_frame, columns=('rate',), height=6,
@@ -194,19 +206,21 @@ class ModulePlugin(ModuleBase):
         self._connected_list.column('#0', width=180)
         self._connected_list.heading('rate', text='Hz')
         self._connected_list.column('rate', width=60, anchor='center')
-        self._connected_list.pack(fill='both', expand=True)
+        self._connected_list.grid(row=0, column=0, sticky='nsew')
 
         refresh_btn = ttk.Button(
             left_frame, text=_('refresh_guardian.refresh'),
             command=self._refresh_connected_list,
         )
-        refresh_btn.pack(fill='x', pady=(2, 0))
+        refresh_btn.grid(row=1, column=0, sticky='ew', pady=(2, 0))
         self._refresh_connected_list()
 
         # 右侧：已记录显示器
         right_frame = ttk.LabelFrame(lists_row, text=_('refresh_guardian.recorded'),
                                      padding=4)
-        right_frame.pack(side='right', fill='both', expand=True, padx=(4, 0))
+        right_frame.grid(row=0, column=1, sticky='nsew', padx=(4, 0))
+        right_frame.rowconfigure(0, weight=1)   # Canvas 行
+        right_frame.columnconfigure(0, weight=1) # Canvas 列
 
         # 使用 Canvas + Scrollbar 实现可滚动
         right_canvas = tk.Canvas(right_frame, highlightthickness=0)
@@ -214,20 +228,29 @@ class ModulePlugin(ModuleBase):
                                         command=right_canvas.yview)
         recorded_inner = ttk.Frame(right_canvas)
 
+        # 内层 Frame <Configure> → 更新 scrollregion
         recorded_inner.bind('<Configure>',
-                            lambda e: right_canvas.configure(scrollregion=right_canvas.bbox('all')))
-        right_canvas.create_window((0, 0), window=recorded_inner, anchor='nw')
+                            lambda e: right_canvas.configure(
+                                scrollregion=right_canvas.bbox('all')))
+
+        # Canvas create_window（用 tags 替代 window_id）
+        right_canvas.create_window(
+            (0, 0), window=recorded_inner, anchor='nw', tags=('inner',),
+        )
+        # Canvas <Configure> → 同步内层 Frame 宽度
+        right_canvas.bind('<Configure>',
+                          lambda e: right_canvas.itemconfig('inner', width=e.width))
         right_canvas.configure(yscrollcommand=right_scrollbar.set)
 
-        right_canvas.pack(side='left', fill='both', expand=True)
-        right_scrollbar.pack(side='right', fill='y')
+        right_canvas.grid(row=0, column=0, sticky='nsew')
+        right_scrollbar.grid(row=0, column=1, sticky='ns')
 
         self._recorded_frame = recorded_inner
         self._recorded_rows: list[dict] = []  # 记录每行的 widget 信息
 
-        # 底部操作按钮
+        # 底部操作按钮（grid 第二行，跨两列）
         action_row = ttk.Frame(right_frame)
-        action_row.pack(fill='x', pady=(2, 0))
+        action_row.grid(row=1, column=0, columnspan=2, sticky='ew', pady=(2, 0))
 
         add_btn = ttk.Button(
             action_row, text=_('refresh_guardian.add_current'),
@@ -321,19 +344,23 @@ class ModulePlugin(ModuleBase):
             row_frame, textvariable=rate_var, state='readonly', width=8,
         )
 
-        # 获取支持的刷新率
-        if settings:
-            try:
-                from utils.display_manager import get_supported_refresh_rates
-                supported = get_supported_refresh_rates(
+        # 获取所有分辨率下的刷新率 + 当前分辨率下的子集（用于 * 标注）
+        try:
+            from utils.display_manager import get_supported_refresh_rates
+            all_rates = get_supported_refresh_rates(name)
+            current_rates: set[int] = set()
+            if settings:
+                current_rates = set(get_supported_refresh_rates(
                     name, settings['width'], settings['height'],
-                )
-            except Exception:
-                supported = [60, 75, 90, 100, 120, 144, 165, 180, 200, 240]
-        else:
-            supported = [60, 75, 90, 100, 120, 144, 165, 180, 200, 240]
+                ))
+        except Exception:
+            all_rates = []
+            current_rates = set()
 
-        rate_combo['values'] = [f'{r}Hz' for r in supported]
+        rate_combo['values'] = [
+            f'{r}Hz' + (' *' if r not in current_rates else '')
+            for r in all_rates
+        ]
         rate_combo.pack(side='left', padx=(4, 0))
 
         # 删除按钮
@@ -419,7 +446,7 @@ class ModulePlugin(ModuleBase):
         for row in self._recorded_rows:
             name = row['name']
             enabled = row['enabled_var'].get()
-            rate_str = row['rate_var'].get().replace('Hz', '').strip()
+            rate_str = row['rate_var'].get().replace('Hz', '').replace('*', '').strip()
             try:
                 rate = int(rate_str) if rate_str else 60
             except ValueError:

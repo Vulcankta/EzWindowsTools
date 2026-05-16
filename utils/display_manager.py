@@ -41,6 +41,9 @@ DISP_CHANGE_BADDUALVIEW   = -6
 CDS_TEST         = 0x00000002
 CDS_UPDATEREGISTRY = 0x00000001
 
+# EnumDisplaySettingsEx 标志
+EDS_RAWMODE = 0x00000002  # 获取 GPU 驱动报告的所有模式（含显示器 EDID 未报告的）
+
 
 # ── Windows 结构体 ───────────────────────────────────────────
 
@@ -104,10 +107,10 @@ _EnumDisplayDevicesW.argtypes = [wintypes.LPCWSTR, ctypes.c_ulong,
                                  ctypes.POINTER(DISPLAY_DEVICEW), ctypes.c_ulong]
 _EnumDisplayDevicesW.restype = wintypes.BOOL
 
-_EnumDisplaySettingsW = ctypes.windll.user32.EnumDisplaySettingsW
-_EnumDisplaySettingsW.argtypes = [wintypes.LPCWSTR, ctypes.c_ulong,
-                                  ctypes.POINTER(DEVMODEW)]
-_EnumDisplaySettingsW.restype = wintypes.BOOL
+_EnumDisplaySettingsExW = ctypes.windll.user32.EnumDisplaySettingsExW
+_EnumDisplaySettingsExW.argtypes = [wintypes.LPCWSTR, ctypes.c_ulong,
+                                    ctypes.POINTER(DEVMODEW), ctypes.c_ulong]
+_EnumDisplaySettingsExW.restype = wintypes.BOOL
 
 _ChangeDisplaySettingsExW = ctypes.windll.user32.ChangeDisplaySettingsExW
 _ChangeDisplaySettingsExW.argtypes = [
@@ -135,7 +138,7 @@ def get_connected_displays() -> list[dict]:
                 and not (dd.StateFlags & DISPLAY_DEVICE_MIRRORING_DRIVER):
             dm = DEVMODEW()
             dm.dmSize = ctypes.sizeof(DEVMODEW)
-            if _EnumDisplaySettingsW(dd.DeviceName, ENUM_CURRENT_SETTINGS, ctypes.byref(dm)):
+            if _EnumDisplaySettingsExW(dd.DeviceName, ENUM_CURRENT_SETTINGS, ctypes.byref(dm), 0):
                 displays.append({
                     'name': dd.DeviceName,
                     'friendly_name': dd.DeviceString,
@@ -157,7 +160,7 @@ def get_current_settings(name: str) -> Optional[dict]:
     """
     dm = DEVMODEW()
     dm.dmSize = ctypes.sizeof(DEVMODEW)
-    if not _EnumDisplaySettingsW(name, ENUM_CURRENT_SETTINGS, ctypes.byref(dm)):
+    if not _EnumDisplaySettingsExW(name, ENUM_CURRENT_SETTINGS, ctypes.byref(dm), 0):
         return None
     return {
         'refresh_rate': dm.dmDisplayFrequency,
@@ -167,21 +170,27 @@ def get_current_settings(name: str) -> Optional[dict]:
     }
 
 
-def get_supported_refresh_rates(name: str, width: int, height: int) -> list[int]:
-    """枚举指定显示器在给定分辨率下支持的所有刷新率
+def get_supported_refresh_rates(name: str, width: int = 0, height: int = 0) -> list[int]:
+    """枚举指定显示器支持的刷新率
+
+    不传 width/height：返回所有分辨率下的全部刷新率
+    传 width/height：   只返回该分辨率下的刷新率
 
     返回:
-        [60, 75, 120, 144, ...] 去重升序
+        [50, 59, 60, 75, 100, 120, ...] 去重升序
     """
     rates: set[int] = set()
     mode_index = 0
     while True:
         dm = DEVMODEW()
         dm.dmSize = ctypes.sizeof(DEVMODEW)
-        if not _EnumDisplaySettingsW(name, mode_index, ctypes.byref(dm)):
+        if not _EnumDisplaySettingsExW(name, mode_index, ctypes.byref(dm), EDS_RAWMODE):
             break
-        if dm.dmPelsWidth == width and dm.dmPelsHeight == height:
-            if dm.dmDisplayFrequency > 0:
+        if dm.dmDisplayFrequency > 0 and dm.dmPelsWidth > 0:
+            if width > 0 and height > 0:
+                if dm.dmPelsWidth == width and dm.dmPelsHeight == height:
+                    rates.add(dm.dmDisplayFrequency)
+            else:
                 rates.add(dm.dmDisplayFrequency)
         mode_index += 1
     return sorted(rates)
@@ -196,7 +205,7 @@ def set_refresh_rate(name: str, target_hz: int) -> tuple[bool, str]:
     # 读取当前设置
     dm = DEVMODEW()
     dm.dmSize = ctypes.sizeof(DEVMODEW)
-    if not _EnumDisplaySettingsW(name, ENUM_CURRENT_SETTINGS, ctypes.byref(dm)):
+    if not _EnumDisplaySettingsExW(name, ENUM_CURRENT_SETTINGS, ctypes.byref(dm), 0):
         return False, '无法读取当前显示器设置'
 
     # 修改刷新率

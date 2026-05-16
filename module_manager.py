@@ -34,7 +34,7 @@ class ModuleManager:
         started: list[str] = []
         for name, cls in registry.items():
             info = infos.get(name, {})
-            if info.get('enabled', True) and info.get('auto_start', False):
+            if info.get('auto_start', False):
                 if self.start_module(name, cls, info):
                     started.append(name)
         return started
