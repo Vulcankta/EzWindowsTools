@@ -2,10 +2,10 @@
 集中配置管理 — 线程安全、原子写入、模块热重载
 """
 
+import copy
 import json
 import logging
 import threading
-import copy
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -42,10 +42,10 @@ DEFAULT_REFRESH_GUARDIAN_CONFIG: dict[str, Any] = {
 }
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    "manager": dict(DEFAULT_MANAGER_CONFIG),
+    "manager": copy.deepcopy(DEFAULT_MANAGER_CONFIG),
     "modules": {
-        "screen_guardian": dict(DEFAULT_SCREEN_GUARDIAN_CONFIG),
-        "refresh_guardian": dict(DEFAULT_REFRESH_GUARDIAN_CONFIG),
+        "screen_guardian": copy.deepcopy(DEFAULT_SCREEN_GUARDIAN_CONFIG),
+        "refresh_guardian": copy.deepcopy(DEFAULT_REFRESH_GUARDIAN_CONFIG),
     },
 }
 
@@ -100,7 +100,7 @@ class ConfigManager:
                 'manager': dict(DEFAULT_MANAGER_CONFIG),
                 'modules': {},
             }
-            sg_config = dict(DEFAULT_SCREEN_GUARDIAN_CONFIG)
+            sg_config = copy.deepcopy(DEFAULT_SCREEN_GUARDIAN_CONFIG)
             for key in ['check_interval_seconds',
                          'ac_display_timeout_minutes',
                          'dc_display_timeout_minutes',
@@ -113,7 +113,7 @@ class ConfigManager:
             return new
 
         # 确保必需的结构存在
-        config.setdefault('manager', dict(DEFAULT_MANAGER_CONFIG))
+        config.setdefault('manager', copy.deepcopy(DEFAULT_MANAGER_CONFIG))
         config.setdefault('modules', {})
         return config
 
@@ -209,6 +209,17 @@ class ConfigManager:
         """
         with self._lock:
             self._callbacks.setdefault(module_name, []).append(callback)
+
+    def unregister_callback(self, module_name: str,
+                            callback: Callable[[str, dict], None]) -> None:
+        """注销配置变更回调"""
+        with self._lock:
+            cbs = self._callbacks.get(module_name)
+            if cbs:
+                try:
+                    cbs.remove(callback)
+                except ValueError:
+                    pass
 
     def _notify(self, name: str) -> None:
         """通知指定模块的监听者（不含 __all__，线程安全：快照后释放锁再执行）"""

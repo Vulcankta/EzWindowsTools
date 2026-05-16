@@ -66,6 +66,7 @@ class RefreshRateGuardianCore:
             # 检查每个已记录的显示器
             show_notifications = config.get('show_notifications', True)
             corrections: list[str] = []
+            msg = ''
             for display in connected:
                 name = display['name']
                 friendly = display['friendly_name']
@@ -82,6 +83,7 @@ class RefreshRateGuardianCore:
                     continue  # 已禁用或期望值不合法
 
                 # 允许 1Hz 误差（NTSC vs 整数精度问题，如 59.94→59 或 119.88→119）
+                # TODO: 360Hz+ 显示器 1Hz 仅 ±0.28%，可考虑百分比容差如 max(1, expected*0.01)
                 if abs(current_hz - expected_hz) <= 1:
                     continue
 
@@ -96,37 +98,19 @@ class RefreshRateGuardianCore:
             self.last_check_time = datetime.now()
 
             if corrections:
-                msg = '修正完成: ' + ', '.join(corrections)
+                msg = '\n'.join(corrections)
                 logging.warning(msg)
-
                 if show_notifications and self._on_correction:
                     self._on_correction(corrections)
 
-                return ModuleStatus(
-                    state='running',
-                    detail='; '.join(corrections),
-                    last_check=self.last_check_time,
-                    was_corrected=True,
-                )
-
+            state = 'error' if any('失败' in c for c in corrections) else 'running'
+            detail = msg if corrections else '检查正常'
             return ModuleStatus(
-                state='running',
-                detail='正常',
+                state=state,
+                detail=detail,
                 last_check=self.last_check_time,
+                was_corrected=bool(corrections),
             )
-
         except Exception as e:
-            logging.error(f'刷新率检查失败: {e}', exc_info=True)
-            return ModuleStatus(
-                state='error',
-                detail=str(e),
-                last_check=datetime.now(),
-            )
-
-    def get_supported_rates(self, name: str, width: int, height: int) -> list[int]:
-        """获取指定显示器在给定分辨率下支持的刷新率列表"""
-        try:
-            return get_supported_refresh_rates(name, width, height)
-        except Exception as e:
-            logging.warning(f'获取支持刷新率失败 ({name}): {e}')
-            return []
+            logging.warning(f'检查过程发生异常: {e}')
+            return ModuleStatus(state='error', detail=str(e))

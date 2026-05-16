@@ -71,6 +71,7 @@ class ModulePlugin(ModuleBase):
             state=self._status.state,
             detail=self._status.detail,
             last_check=self._core.last_check_time,
+            was_corrected=self._status.was_corrected,
         )
 
     def _alive(self) -> bool:

@@ -75,6 +75,7 @@ class Manager:
 
         self.config_mgr = ConfigManager(CONFIG_FILE)
         self.module_mgr = ModuleManager(self.config_mgr)
+        self.module_mgr.set_notify_callback(self._module_notify)
 
         # ── i18n ──
         self.i18n = init_i18n(LOCALES_DIR)
@@ -146,9 +147,6 @@ class Manager:
         self._tray_thread.start()
         logging.info('托盘图标已在后台线程启动')
 
-        # 为已启动的模块注入通知回调（托盘通知 + 图标刷新）
-        self._bind_module_notify()
-
         # 主线程运行 tkinter（窗口默认隐藏，设置菜单显示时弹出）
         import tkinter as tk
         self._root = tk.Tk()
@@ -205,13 +203,6 @@ class Manager:
             logging.error(f'显示设置窗口失败: {e}', exc_info=True)
 
     # ── 退出 ──────────────────────────────────────────────
-
-    def _bind_module_notify(self) -> None:
-        """为所有运行中的模块设置通知回调"""
-        for name in self.module_mgr.get_running_modules():
-            instance = self.module_mgr.get_instance(name)
-            if instance:
-                instance.set_notify_callback(self._module_notify)
 
     def _module_notify(self, title: str, message: str) -> None:
         """模块通知回调：通过线程安全队列转发到主线程"""

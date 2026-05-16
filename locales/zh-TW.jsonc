@@ -17,6 +17,7 @@
   "config.language": "語言",
   "config.language.custom": "自訂語言檔案...",
   "config.language.browse": "瀏覽語言檔案...",
+  "config.language.builtin": "內建: {name}",
   "config.save": "儲存",
   "config.cancel": "取消",
 

@@ -16,9 +16,14 @@ class ModuleManager:
     def __init__(self, config_mgr: ConfigManager) -> None:
         self._config_mgr = config_mgr
         self._instances: dict[str, ModuleBase] = {}
+        self._notify_callback = None  # 由 Manager 设置，用于注入模块通知回调
 
         # 注册全局配置回调，确保模块热重载
         self._config_mgr.register_callback('__all__', self._on_any_config_changed)
+
+    def set_notify_callback(self, callback) -> None:
+        """设置通知回调（Manager 调用，start_module 时自动注入）"""
+        self._notify_callback = callback
 
     # ── 加载与启动 ───────────────────────────────────────
 
@@ -27,7 +32,12 @@ class ModuleManager:
         return discover_modules()
 
     def start_all_auto(self) -> list[str]:
-        """启动所有标记为 auto_start 的模块，返回成功列表"""
+        """启动所有标记为 auto_start 的模块，返回成功列表
+
+        注意：只检查 auto_start，不检查 enabled。
+        这是有意的——enabled（立即启停）和 auto_start（下次重启行为）是两个独立控制。
+        用户可能临时关闭模块但保留 auto_start=True，重启后仍会自动启动。
+        """
         registry = list_modules()
         # 预读全部配置快照，避免迭代中途配置变更导致不一致
         infos = {name: self._config_mgr.get_module_info(name) for name in registry}
@@ -69,6 +79,9 @@ class ModuleManager:
 
             instance = cls()
             instance.set_initial_config(info.get('config', {}))
+            # 注入通知回调（由 Manager 设置）
+            if self._notify_callback:
+                instance.set_notify_callback(self._notify_callback)
             instance.start()
             self._instances[name] = instance
 
@@ -92,6 +105,9 @@ class ModuleManager:
                 logging.info(f'模块已停止: {instance.display_name}')
             else:
                 logging.warning(f'模块停止超时: {instance.display_name}')
+            # 无论 stop 成功还是超时，都注销回调防止累积
+            self._config_mgr.unregister_callback(name,
+                                                 self._on_module_config_changed)
             return result
         except Exception as e:
             logging.error(f'停止模块 {name} 失败: {e}')

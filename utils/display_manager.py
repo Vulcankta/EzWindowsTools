@@ -140,7 +140,7 @@ def get_connected_displays() -> list[dict]:
             dm.dmSize = ctypes.sizeof(DEVMODEW)
             if _EnumDisplaySettingsExW(dd.DeviceName, ENUM_CURRENT_SETTINGS, ctypes.byref(dm), 0):
                 displays.append({
-                    'name': dd.DeviceName,
+                    'name': dd.DeviceName.rstrip('\\'),
                     'friendly_name': dd.DeviceString,
                     'current_refresh_rate': dm.dmDisplayFrequency,
                     'current_width': dm.dmPelsWidth,

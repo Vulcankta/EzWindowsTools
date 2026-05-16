@@ -77,6 +77,7 @@ class ModulePlugin(ModuleBase):
             state=self._status.state,
             detail=self._status.detail,
             last_check=self._core.last_check_time,
+            was_corrected=self._status.was_corrected,
         )
 
     def _alive(self) -> bool:
@@ -117,7 +118,6 @@ class ModulePlugin(ModuleBase):
                     self._restart_event.clear()
                     logging.debug('配置已变更，重新计算检查间隔')
                     break
-                time.sleep(0)  # wait 已阻塞 1s，无需额外 sleep
 
     def _do_check(self) -> None:
         """执行一次检查（线程安全）"""
@@ -200,7 +200,7 @@ class ModulePlugin(ModuleBase):
         left_frame.columnconfigure(0, weight=1)
 
         self._connected_list = ttk.Treeview(
-            left_frame, columns=('rate',), height=6,
+            left_frame, columns=('rate',), height=10,
         )
         self._connected_list.heading('#0', text=_('refresh_guardian.display_name'))
         self._connected_list.column('#0', width=180)
@@ -244,6 +244,18 @@ class ModulePlugin(ModuleBase):
 
         right_canvas.grid(row=0, column=0, sticky='nsew')
         right_scrollbar.grid(row=0, column=1, sticky='ns')
+
+        # 鼠标滚轮支持
+        def _on_enter(event):
+            right_canvas.bind_all('<MouseWheel>',
+                                  lambda e: right_canvas.yview_scroll(
+                                      int(-1 * (e.delta / 120)), 'units'))
+
+        def _on_leave(event):
+            right_canvas.unbind_all('<MouseWheel>')
+
+        right_canvas.bind('<Enter>', _on_enter)
+        right_canvas.bind('<Leave>', _on_leave)
 
         self._recorded_frame = recorded_inner
         self._recorded_rows: list[dict] = []  # 记录每行的 widget 信息
