@@ -31,10 +31,18 @@ DEFAULT_SCREEN_GUARDIAN_CONFIG = {
     },
 }
 
+DEFAULT_REFRESH_GUARDIAN_CONFIG: dict[str, Any] = {
+    "check_interval_seconds": 60,
+    "show_notifications": True,
+    "correction_cooldown_seconds": 300,
+    "displays": {},
+}
+
 DEFAULT_CONFIG: dict[str, Any] = {
     "manager": dict(DEFAULT_MANAGER_CONFIG),
     "modules": {
         "screen_guardian": dict(DEFAULT_SCREEN_GUARDIAN_CONFIG),
+        "refresh_guardian": dict(DEFAULT_REFRESH_GUARDIAN_CONFIG),
     },
 }
 

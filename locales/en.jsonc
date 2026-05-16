@@ -43,6 +43,21 @@
   "screen_guardian.dc_sleep": "DC sleep timeout",
   "screen_guardian.show_notifications": "Show notifications",
 
+  // -- refresh_guardian --
+  "refresh_guardian.name": "Refresh Rate Guardian",
+  "refresh_guardian.description": "Keeps each display at its expected refresh rate.",
+  "refresh_guardian.check_interval": "Check interval",
+  "refresh_guardian.show_notifications": "Show notifications",
+  "refresh_guardian.connected": "Connected Displays",
+  "refresh_guardian.recorded": "Recorded Displays",
+  "refresh_guardian.display_name": "Display",
+  "refresh_guardian.refresh": "Refresh",
+  "refresh_guardian.add_current": "Add Current",
+  "refresh_guardian.clear_all": "Clear All",
+  "refresh_guardian.no_recorded": "No recorded displays. Click \"Add Current\" to add one.",
+  "refresh_guardian.added_count": "{count} display(s) added.",
+  "refresh_guardian.confirm_clear": "Clear all recorded displays?",
+
   // -- units --
   "unit.seconds": "seconds",
   "unit.minutes": "minutes",

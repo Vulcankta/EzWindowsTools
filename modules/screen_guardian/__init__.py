@@ -80,14 +80,14 @@ class ModulePlugin(ModuleBase):
 
     def on_config_changed(self, config: dict) -> None:
         """热重载配置"""
-        self._config = config
+        self._config = dict(config)
         if self._core:
-            self._core.update_config(config)
+            self._core.update_config(self._config)
         logging.info('屏幕超时守护配置已热重载')
 
     def set_initial_config(self, config: dict) -> None:
         """启动前设置初始配置（Manager 模式）"""
-        self._config = config
+        self._config = dict(config)
 
     # ── 监控循环 ──────────────────────────────────────────
 
@@ -134,7 +134,7 @@ class ModulePlugin(ModuleBase):
         logging.info(msg)
         # 托盘通知（由 Manager 注入 _notify_callback）
         if self._notify_callback and self._config.get('show_notifications', True):
-            self._notify_callback('ScreenTimeoutGuardian', msg)
+            self._notify_callback(self.display_name, msg)
 
     # ── 配置 UI ──────────────────────────────────────────
 
@@ -150,6 +150,7 @@ class ModulePlugin(ModuleBase):
         from tkinter import ttk, IntVar, BooleanVar
         frame = ttk.Frame(parent)
         from utils.i18n import _
+
 
         # 配置项容器
         self._config_widgets: dict[str, object] = {}
