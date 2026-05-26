@@ -1,0 +1,56 @@
+[package]
+name = "ezwindows-tools"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Win32 API — Microsoft 官方绑定（最小特性集）
+windows = { version = "0.58", features = [
+    "Win32_System_Power",
+    "Win32_System_Registry",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_Foundation",
+    "Win32_UI_Shell",
+] }
+
+# 序列化
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# GUID
+uuid = { version = "1", features = ["serde", "v4"] }
+
+# 日志
+log = "0.4"
+fern = "0.7"
+chrono = "0.4"
+
+# 错误处理
+thiserror = "2"
+anyhow = "1"
+
+# 线程通道
+flume = "0.11"
+
+# Ctrl+C 处理
+ctrlc = "3.4"
+
+# 系统托盘
+tray-icon = "0.19"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+# GUI 设置窗口
+egui = "0.28"
+eframe = { version = "0.28", features = ["default"] }
+
+# 注册表（自启动）
+winreg = "0.52"
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
